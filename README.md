@@ -20,9 +20,8 @@ Villager Brain Config is a lightweight Minecraft mod that gives server owners, m
 
 ## Compatibility
 
-- Minecraft 1.21.1 planned (more versions down the road)
-- Fabric and NeoForge support
-- Supports modded villager professions and any modded blocks or tags
+- Minecraft 1.21.1 on NeoForge
+- Server-side only, works with modded villager professions and any modded blocks or tags
 
 ---
 

@@ -11,17 +11,22 @@ version="${modversion}"
 displayName="${display_name}"
 authors="${author}"
 description="${description}"
-logoFile="assets/${namespace}/textures/mod_logo.png"
+logoFile="assets/${id}/textures/mod_logo.png"
 displayURL = "https://github.com/${github}/${name}/"
 
 [[mixins]]
-config = "mixins.${mixinid}.json"
+config = "mixins.villager_brain_config.json"
 
 [[dependencies."${id}"]]
 modId="minecraft"
-mandatory=true
-versionRange="${mc}"
+type="required"
+versionRange="[1.21.1,1.22)"
 ordering="NONE"
 side="BOTH"
 
-${depends}
+[[dependencies."${id}"]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.0,)"
+ordering="NONE"
+side="BOTH"

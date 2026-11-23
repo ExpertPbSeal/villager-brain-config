@@ -63,11 +63,7 @@ public class ConfigManager {
     }
 
     public static void processAvoidEntries(Level level) {
-        #if mc <= 211
         Registry<Block> blockRegistry = level.registryAccess().registryOrThrow(Registries.BLOCK);
-        #else
-        Registry<Block> blockRegistry = level.registryAccess().lookupOrThrow(Registries.BLOCK);
-        #endif
         for (Map.Entry<String, ModConfig> entry : CONFIG.professions.entrySet()) {
             String profession = entry.getKey();
             List<AvoidEntry> rawList = entry.getValue().avoids;
@@ -91,13 +87,7 @@ public class ConfigManager {
                     p.isTag = false;
                     ResourceLocation blockId = ResourceLocation.tryParse(avoid.block);
                     if (blockId != null && blockRegistry.containsKey(blockId)) {
-                        #if mc <= 211
                         p.block = blockRegistry.get(blockId);
-                        #else
-                        if (blockRegistry.get(blockId).isPresent()) {
-                            p.block = blockRegistry.get(blockId).get().value();
-                        }
-                        #endif
                         processed.add(p);
                     }
                 }
@@ -487,14 +477,7 @@ public class ConfigManager {
         if (parts.length != 2) return -1.0;
 
         ResourceLocation resourceLocation = ResourceLocation.fromNamespaceAndPath(parts[0].substring(1), parts[1]);
-        Block block = null;
-        #if mc <= 211
-        block = BuiltInRegistries.BLOCK.get(resourceLocation);
-        #else
-        if (BuiltInRegistries.BLOCK.get(resourceLocation).isPresent()) {
-            block = BuiltInRegistries.BLOCK.get(resourceLocation).get().value();
-        }
-        #endif
+        Block block = BuiltInRegistries.BLOCK.get(resourceLocation);
         if (block != null) {
             for (String key : penalties.keySet()) {
                 if (key.startsWith("#")) {
