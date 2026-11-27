@@ -1,6 +1,7 @@
 package joshie.vbc.mixins;
 
 import joshie.vbc.utils.MalusUtils;
+import joshie.vbc.config.ConfigManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
@@ -158,11 +159,6 @@ public abstract class WalkNodeEvaluatorMixin {
         PathType pathType2 = evaluator.getCachedPathType(x, y, z);
         float f = MalusUtils.maybeVillagerMalus(evaluator, pathType2, evaluator.mob, x, y, z);
 
-        if (f < 0) {
-            pathType2 = PathType.BLOCKED;
-//            verticalDeltaLimit = 0;
-        }
-
         if (f >= 0.0F) {
             node = evaluator.getNodeAndUpdateCostToMax(x, y, z, pathType2, f);
         }
@@ -214,8 +210,12 @@ public abstract class WalkNodeEvaluatorMixin {
     @Inject(method = "tryFindFirstGroundNodeBelow", at = @At("HEAD"), cancellable = true)
     private void modifyTryFindFirstGroundNodeBelow(int x, int y, int z, CallbackInfoReturnable<Node> cir) {
         WalkNodeEvaluator evaluator = (WalkNodeEvaluator) (Object) this;
+        int maxFallDistance = evaluator.mob.getMaxFallDistance();
+        if (evaluator.mob instanceof Villager) {
+            maxFallDistance = Math.min(maxFallDistance, ConfigManager.getMaxFallDistance());
+        }
         for(int i = y - 1; i >= evaluator.mob.level().getMinBuildHeight(); --i) {
-            if (y - i > evaluator.mob.getMaxFallDistance()) {
+            if (y - i > maxFallDistance) {
                 cir.setReturnValue(evaluator.getBlockedNode(x, i, z));
                 return;
             }

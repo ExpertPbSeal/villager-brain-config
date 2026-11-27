@@ -17,6 +17,9 @@ public class ModConfig {
     @SerializedName("actions_penalties")
     public Map<String, Double> actionsPenalties = new HashMap<>();
 
+    @SerializedName("max_fall_distance")
+    public int maxFallDistance = 3;
+
     @SerializedName("professions")
     public Map<String, ModConfig> professions = new HashMap<>();
 

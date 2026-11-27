@@ -1,7 +1,7 @@
 package joshie.vbc.config;
 
-import it.unimi.dsi.fastutil.longs.Long2FloatMap;
-import it.unimi.dsi.fastutil.longs.Long2FloatOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ByteMap;
 import it.unimi.dsi.fastutil.longs.Long2ByteOpenHashMap;
 import net.minecraft.core.BlockPos;
@@ -9,7 +9,7 @@ import net.minecraft.world.level.pathfinder.PathType;
 
 
 public class VillagerGlobalTickCache {
-    public static final Long2FloatMap malusCache = new Long2FloatOpenHashMap(4096);
+    private static volatile Long2ObjectMap<float[]>[] partCaches = new Long2ObjectMap[0];
     public static final Long2ByteMap nodeTypeCache = new Long2ByteOpenHashMap(4096);
     
     private static volatile long currentTick = -1;
@@ -20,23 +20,45 @@ public class VillagerGlobalTickCache {
     public static int nodeTypeMisses = 0;
     
 
-    public static float getMalus(BlockPos pos, java.util.function.Supplier<Float> computer) {
+    public static float[] getPenaltyParts(BlockPos pos, int professionIndex, java.util.function.Supplier<float[]> computer) {
         long posKey = pos.asLong();
         
         ensureTickValid();
         
-        if (malusCache.containsKey(posKey)) {
+        Long2ObjectMap<float[]> cache = cache(professionIndex);
+        
+        float[] parts = cache.get(posKey);
+        if (parts != null) {
             malusHits++;
-            return malusCache.get(posKey);
+            return parts;
         }
         
-        float result = computer.get();
-        if (!Float.isNaN(result)) {
-            malusCache.put(posKey, result);
-            malusMisses++;
-        }
+        parts = computer.get();
+        cache.put(posKey, parts);
+        malusMisses++;
         
-        return result;
+        return parts;
+    }
+
+    private static Long2ObjectMap<float[]> cache(int professionIndex) {
+        int slot = professionIndex + 1;
+        Long2ObjectMap<float[]>[] caches = partCaches;
+        if (slot < caches.length) {
+            return caches[slot];
+        }
+        synchronized (VillagerGlobalTickCache.class) {
+            caches = partCaches;
+            if (slot < caches.length) {
+                return caches[slot];
+            }
+            Long2ObjectMap<float[]>[] grown = new Long2ObjectMap[slot + 1];
+            System.arraycopy(caches, 0, grown, 0, caches.length);
+            for (int i = caches.length; i < grown.length; i++) {
+                grown[i] = new Long2ObjectOpenHashMap<>(256);
+            }
+            partCaches = grown;
+            return grown[slot];
+        }
     }
 
     public static PathType getNodeType(int x, int y, int z, java.util.function.Supplier<PathType> computer) {
@@ -70,7 +92,9 @@ public class VillagerGlobalTickCache {
     
 
     public static void reset() {
-        malusCache.clear();
+        for (Long2ObjectMap<float[]> cache : partCaches) {
+            cache.clear();
+        }
         nodeTypeCache.clear();
         
         malusHits = 0;
@@ -107,8 +131,12 @@ public class VillagerGlobalTickCache {
     }
 
     public static CacheStats getStats() {
+        int malusSize = 0;
+        for (Long2ObjectMap<float[]> cache : partCaches) {
+            malusSize += cache.size();
+        }
         return new CacheStats(
-            malusCache.size(), nodeTypeCache.size(),
+            malusSize, nodeTypeCache.size(),
             malusHits, malusMisses, nodeTypeHits, nodeTypeMisses,
             currentTick
         );
