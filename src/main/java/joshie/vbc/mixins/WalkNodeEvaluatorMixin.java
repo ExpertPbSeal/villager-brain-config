@@ -63,10 +63,11 @@ public abstract class WalkNodeEvaluatorMixin {
         PathType pathType = evaluator.getCachedPathType(node.x, node.y + 1, node.z);
         PathType pathType2 = evaluator.getCachedPathType(node.x, node.y, node.z);
 
-        float malus = MalusUtils.maybeVillagerMalus(evaluator, pathType, evaluator.mob, node.x, node.y + 1, node.z);
-
-        if (malus >= 0.0F && pathType2 != PathType.STICKY_HONEY) {
-            j = Mth.floor(Math.max(1.0F, evaluator.mob.maxUpStep()));
+        if (pathType2 != PathType.STICKY_HONEY) {
+            float malus = MalusUtils.maybeVillagerMalus(evaluator, pathType, evaluator.mob, node.x, node.y + 1, node.z);
+            if (malus >= 0.0F) {
+                j = Mth.floor(Math.max(1.0F, evaluator.mob.maxUpStep()));
+            }
         }
 
         double d = evaluator.getFloorLevel(new BlockPos(node.x, node.y, node.z));

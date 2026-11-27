@@ -1,5 +1,8 @@
 package joshie.vbc.config;
 
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.objects.Reference2IntMap;
+import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
 import net.minecraft.core.Registry;
@@ -8,11 +11,13 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -40,7 +45,8 @@ public final class FlatPenaltyCache {
     };
 
     private static volatile Snapshot snapshot = new Snapshot(
-            Collections.emptyMap(), new Table[0], Table.EMPTY, Collections.emptyList(), Collections.emptyList());
+            Collections.emptyMap(), new Reference2IntOpenHashMap<>(), new Table[0], Table.EMPTY, new AvoidData[0],
+            AvoidData.EMPTY, new float[0], 0.0F);
 
     private FlatPenaltyCache() {
     }
@@ -58,23 +64,45 @@ public final class FlatPenaltyCache {
 
         Map<String, Integer> index = new HashMap<>();
         List<Table> professions = new ArrayList<>();
-        List<List<ProcessedAvoidEntry>> avoids = new ArrayList<>();
+        List<AvoidData> avoids = new ArrayList<>();
+        List<Float> jumpPenalties = new ArrayList<>();
         List<ProcessedAvoidEntry> globalAvoids = readAvoids(blocks, ConfigManager.CONFIG.avoids, diagnostics, "global");
+        float globalJump = ConfigManager.CONFIG.actionsPenalties.getOrDefault("jump", 0.0).floatValue();
 
         for (Map.Entry<String, ModConfig> entry : ConfigManager.CONFIG.professions.entrySet()) {
             ModConfig config = entry.getValue() == null ? new ModConfig() : entry.getValue();
             index.put(entry.getKey(), professions.size());
             professions.add(buildTable(blocks, config.walkOnBlockPenalties, config.walkThroughBlockPenalties,
                     global, diagnostics, entry.getKey()));
-            avoids.add(mergeAvoids(readAvoids(blocks, config.avoids, diagnostics, entry.getKey()), globalAvoids));
+            avoids.add(AvoidData.build(mergeAvoids(readAvoids(blocks, config.avoids, diagnostics, entry.getKey()), globalAvoids), blocks));
+            jumpPenalties.add(config.actionsPenalties.containsKey("jump")
+                    ? config.actionsPenalties.get("jump").floatValue() + globalJump
+                    : globalJump);
         }
 
-        snapshot = new Snapshot(index, professions.toArray(new Table[0]), global, avoids, globalAvoids);
+        Reference2IntMap<VillagerProfession> byProfession = new Reference2IntOpenHashMap<>();
+        byProfession.defaultReturnValue(-1);
+        Registry<VillagerProfession> professionRegistry = registryAccess.registryOrThrow(Registries.VILLAGER_PROFESSION);
+        for (Map.Entry<String, Integer> entry : index.entrySet()) {
+            ResourceLocation id = ResourceLocation.tryParse(entry.getKey());
+            VillagerProfession profession = id == null ? null : professionRegistry.get(id);
+            if (profession != null) {
+                byProfession.put(profession, (int) entry.getValue());
+            }
+        }
+
+        float[] jumpArray = new float[jumpPenalties.size()];
+        for (int i = 0; i < jumpArray.length; i++) {
+            jumpArray[i] = jumpPenalties.get(i);
+        }
+
+        snapshot = new Snapshot(index, byProfession, professions.toArray(new Table[0]), global,
+                avoids.toArray(new AvoidData[0]), AvoidData.build(globalAvoids, blocks), jumpArray, globalJump);
         VillagerGlobalTickCache.reset();
 
-        LOGGER.info("Penalty snapshot rebuilt: professions={}, blocks={}, tags={}, unresolved={}, emptyTags={}, time={}ms",
+        LOGGER.info("Penalty snapshot rebuilt: professions={}, blocks={}, tags={}, unresolved={}, emptyTags={}, conflicts={}, time={}ms",
                 professions.size(), global.cells.size(), diagnostics.tags, diagnostics.unresolved, diagnostics.emptyTags,
-                (System.nanoTime() - started) / 1_000_000L);
+                diagnostics.conflicts, (System.nanoTime() - started) / 1_000_000L);
     }
 
     private static Table buildTable(Registry<Block> blocks, Map<String, Double> walkOn, Map<String, Double> walkThrough,
@@ -85,8 +113,8 @@ public final class FlatPenaltyCache {
         TypeTable walkOnType = readType(blocks, walkOn, CONSTANT_WALK_ON, exactLayer, tagLayer, diagnostics, owner, "walk_on");
         TypeTable walkThroughType = readType(blocks, walkThrough, CONSTANT_WALK_THROUGH, exactLayer, tagLayer, diagnostics, owner, "walk_through");
 
-        Reference2ObjectMap<Block, Hit> walkOnHits = resolve(blocks, walkOnType);
-        Reference2ObjectMap<Block, Hit> walkThroughHits = resolve(blocks, walkThroughType);
+        Reference2ObjectMap<Block, Hit> walkOnHits = resolve(blocks, walkOnType, diagnostics, owner, "walk_on");
+        Reference2ObjectMap<Block, Hit> walkThroughHits = resolve(blocks, walkThroughType, diagnostics, owner, "walk_through");
 
         Reference2ObjectMap<Block, Cell> cells = new Reference2ObjectOpenHashMap<>();
         for (Block block : blocks) {
@@ -132,6 +160,17 @@ public final class FlatPenaltyCache {
         return index == null ? -1 : index;
     }
 
+    public static int indexOf(VillagerProfession profession) {
+        if (profession == null) return -1;
+        return snapshot.professionIndex.getInt(profession);
+    }
+
+    public static float getJumpPenalty(int professionIndex) {
+        Snapshot current = snapshot;
+        if (professionIndex < 0 || professionIndex >= current.jumpPenalty.length) return current.jumpPenaltyGlobal;
+        return current.jumpPenalty[professionIndex];
+    }
+
     public static boolean hasProfession(String profession) {
         return snapshot.index.containsKey(profession);
     }
@@ -168,10 +207,18 @@ public final class FlatPenaltyCache {
         return LAYER_NAMES[layer];
     }
 
+    public static boolean isTagLayer(byte layer) {
+        return layer == LAYER_GLOBAL_TAG || layer == LAYER_PROFESSION_TAG;
+    }
+
     public static List<ProcessedAvoidEntry> getAvoids(int professionIndex) {
+        return getAvoidData(professionIndex).entries;
+    }
+
+    public static AvoidData getAvoidData(int professionIndex) {
         Snapshot current = snapshot;
-        if (professionIndex < 0 || professionIndex >= current.avoids.size()) return current.globalAvoids;
-        return current.avoids.get(professionIndex);
+        if (professionIndex < 0 || professionIndex >= current.avoids.length) return current.globalAvoids;
+        return current.avoids[professionIndex];
     }
 
     private static Cell cell(Block block, int professionIndex) {
@@ -227,7 +274,9 @@ public final class FlatPenaltyCache {
             }
         }
 
-        table.tags.sort(Comparator.comparing(rule -> rule.key));
+        table.tags.sort(Comparator.comparingInt((TagRule rule) -> rule.value < 0.0F ? 0 : 1)
+                .thenComparing(Comparator.comparingDouble((TagRule rule) -> -(double) rule.value))
+                .thenComparing(rule -> rule.key));
         for (TagRule rule : table.tags) {
             int members = 0;
             for (Block block : blocks) {
@@ -242,20 +291,55 @@ public final class FlatPenaltyCache {
         return table;
     }
 
-    private static Reference2ObjectMap<Block, Hit> resolve(Registry<Block> blocks, TypeTable type) {
+    private static Reference2ObjectMap<Block, Hit> resolve(Registry<Block> blocks, TypeTable type,
+                                                          Diagnostics diagnostics, String owner, String table) {
         Reference2ObjectMap<Block, Hit> hits = new Reference2ObjectOpenHashMap<>();
         for (Reference2ObjectMap.Entry<Block, Float> entry : type.exact.reference2ObjectEntrySet()) {
             hits.put(entry.getKey(), new Hit(entry.getValue(), type.exactLayer));
         }
         if (type.tags.isEmpty()) return hits;
 
+        int ruleCount = type.tags.size();
+        boolean[] matched = ruleCount > 1 ? new boolean[ruleCount] : null;
+
         for (Block block : blocks) {
             if (hits.containsKey(block)) continue;
-            for (TagRule rule : type.tags) {
+
+            if (ruleCount == 1) {
+                TagRule rule = type.tags.get(0);
                 if (rule.matches(block)) {
                     hits.put(block, new Hit(rule.value, type.tagLayer));
-                    break;
                 }
+                continue;
+            }
+
+            Arrays.fill(matched, false);
+            int first = -1;
+            int count = 0;
+            for (int i = 0; i < ruleCount; i++) {
+                if (type.tags.get(i).matches(block)) {
+                    matched[i] = true;
+                    count++;
+                    if (first < 0) first = i;
+                }
+            }
+            if (first < 0) continue;
+
+            TagRule winner = type.tags.get(first);
+            hits.put(block, new Hit(winner.value, type.tagLayer));
+            if (count > 1) {
+                StringBuilder key = new StringBuilder();
+                StringBuilder names = new StringBuilder();
+                for (int i = 0; i < ruleCount; i++) {
+                    if (!matched[i]) continue;
+                    TagRule rule = type.tags.get(i);
+                    if (names.length() > 0) names.append(", ");
+                    names.append(rule.key).append(' ').append(rule.value);
+                    key.append(rule.key).append(';');
+                }
+                diagnostics.conflict(owner + '|' + table + '|' + key, "Conflicting tags in " + owner + '.' + table + ": "
+                        + names + " match the same blocks, " + winner.key
+                        + " wins (negative first, then higher value, then tag id)");
             }
         }
         return hits;
@@ -407,20 +491,77 @@ public final class FlatPenaltyCache {
         }
     }
 
+    public static final class AvoidData {
+        public static final AvoidData EMPTY = new AvoidData(Collections.emptyList(), 0, true,
+                new Reference2ObjectOpenHashMap<>(0));
+
+        public final List<ProcessedAvoidEntry> entries;
+        public final int maxRadius;
+        public final boolean allNonPositive;
+        public final Reference2ObjectMap<Block, int[]> byBlock;
+
+        private AvoidData(List<ProcessedAvoidEntry> entries, int maxRadius, boolean allNonPositive,
+                          Reference2ObjectMap<Block, int[]> byBlock) {
+            this.entries = entries;
+            this.maxRadius = maxRadius;
+            this.allNonPositive = allNonPositive;
+            this.byBlock = byBlock;
+        }
+
+        static AvoidData build(List<ProcessedAvoidEntry> source, Registry<Block> blocks) {
+            if (source.isEmpty()) return EMPTY;
+
+            List<ProcessedAvoidEntry> entries = List.copyOf(source);
+            int maxRadius = 0;
+            boolean allNonPositive = true;
+            for (ProcessedAvoidEntry entry : entries) {
+                if (entry.radius > maxRadius) maxRadius = entry.radius;
+                if (entry.penalty > 0.0) allNonPositive = false;
+            }
+
+            Reference2ObjectMap<Block, IntArrayList> temporary = new Reference2ObjectOpenHashMap<>();
+            for (int i = 0; i < entries.size(); i++) {
+                ProcessedAvoidEntry entry = entries.get(i);
+                if (entry.isTag) {
+                    for (Block block : blocks) {
+                        if (entry.matches(block)) {
+                            temporary.computeIfAbsent(block, key -> new IntArrayList(1)).add(i);
+                        }
+                    }
+                } else if (entry.block != null) {
+                    temporary.computeIfAbsent(entry.block, key -> new IntArrayList(1)).add(i);
+                }
+            }
+
+            Reference2ObjectMap<Block, int[]> byBlock = new Reference2ObjectOpenHashMap<>(temporary.size());
+            for (Reference2ObjectMap.Entry<Block, IntArrayList> entry : temporary.reference2ObjectEntrySet()) {
+                byBlock.put(entry.getKey(), entry.getValue().toIntArray());
+            }
+            return new AvoidData(entries, maxRadius, allNonPositive, byBlock);
+        }
+    }
+
     private static final class Snapshot {
         final Map<String, Integer> index;
+        final Reference2IntMap<VillagerProfession> professionIndex;
         final Table[] professions;
         final Table global;
-        final List<List<ProcessedAvoidEntry>> avoids;
-        final List<ProcessedAvoidEntry> globalAvoids;
+        final AvoidData[] avoids;
+        final AvoidData globalAvoids;
+        final float[] jumpPenalty;
+        final float jumpPenaltyGlobal;
 
-        Snapshot(Map<String, Integer> index, Table[] professions, Table global,
-                 List<List<ProcessedAvoidEntry>> avoids, List<ProcessedAvoidEntry> globalAvoids) {
+        Snapshot(Map<String, Integer> index, Reference2IntMap<VillagerProfession> professionIndex,
+                 Table[] professions, Table global, AvoidData[] avoids, AvoidData globalAvoids,
+                 float[] jumpPenalty, float jumpPenaltyGlobal) {
             this.index = index;
+            this.professionIndex = professionIndex;
             this.professions = professions;
             this.global = global;
             this.avoids = avoids;
             this.globalAvoids = globalAvoids;
+            this.jumpPenalty = jumpPenalty;
+            this.jumpPenaltyGlobal = jumpPenaltyGlobal;
         }
     }
 
@@ -429,6 +570,7 @@ public final class FlatPenaltyCache {
         private int tags;
         private int unresolved;
         private int emptyTags;
+        private int conflicts;
 
         void invalid(String owner, String type, String key) {
             unresolved++;
@@ -452,6 +594,13 @@ public final class FlatPenaltyCache {
 
         void tag() {
             tags++;
+        }
+
+        void conflict(String key, String message) {
+            if (reported.add(key)) {
+                conflicts++;
+                LOGGER.warn(message);
+            }
         }
 
         private void report(String message) {

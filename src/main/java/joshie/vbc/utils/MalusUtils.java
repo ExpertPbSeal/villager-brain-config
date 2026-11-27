@@ -1,6 +1,5 @@
 package joshie.vbc.utils;
 
-import joshie.vbc.config.ConfigManager;
 import joshie.vbc.config.FlatPenaltyCache;
 import joshie.vbc.config.ProcessedAvoidEntry;
 import joshie.vbc.config.VillagerGlobalTickCache;
@@ -14,10 +13,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.pathfinder.NodeEvaluator;
 import net.minecraft.world.level.pathfinder.PathType;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
 public class MalusUtils {
     public static boolean hasMalus(PathfinderMob mob, BlockPos pos) {
         return false;
@@ -25,6 +20,14 @@ public class MalusUtils {
 
     public static String getProfessionId(Villager villager) {
         return joshie.vbc.config.ProfessionCache.getProfessionId(villager);
+    }
+
+    private static int professionIndexOf(Villager villager) {
+        int index = FlatPenaltyCache.indexOf(villager.getVillagerData().getProfession());
+        if (index >= 0) {
+            return index;
+        }
+        return FlatPenaltyCache.indexOf(getProfessionId(villager));
     }
 
 
@@ -38,7 +41,7 @@ public class MalusUtils {
         
         try {
             if (mob instanceof Villager villager) {
-                int professionIndex = FlatPenaltyCache.indexOf(getProfessionId(villager));
+                int professionIndex = professionIndexOf(villager);
                 BlockPos.MutableBlockPos pos = BlockPosPool.acquire1();
                 pos.set(x, y, z);
                 
@@ -48,7 +51,8 @@ public class MalusUtils {
                 return merge(parts[0], parts[1],
                         FlatPenaltyCache.getWalkOnDefault(professionIndex),
                         FlatPenaltyCache.getWalkThroughDefault(professionIndex),
-                        parts[2], mob.getPathfindingMalus(pathType));
+                        parts[2], mob.getPathfindingMalus(pathType),
+                        (byte) parts[3], (byte) parts[4]);
             }
             
             return mob.getPathfindingMalus(pathType);
@@ -76,11 +80,14 @@ public class MalusUtils {
                 ? (float) computeAvoidPenalty(serverLevel, professionIndex, posAt)
                 : 0.0F;
 
-        return new float[] { walkOn, walkThrough, avoid };
+        byte walkOnLayer = Float.isNaN(walkOn) ? FlatPenaltyCache.LAYER_NONE : FlatPenaltyCache.getWalkOnLayer(blockBelow, professionIndex);
+        byte walkThroughLayer = Float.isNaN(walkThrough) ? FlatPenaltyCache.LAYER_NONE : FlatPenaltyCache.getWalkThroughLayer(blockAt, professionIndex);
+
+        return new float[] { walkOn, walkThrough, avoid, walkOnLayer, walkThroughLayer };
     }
 
     public static float merge(float walkOn, float walkThrough, float walkOnDefault, float walkThroughDefault,
-                              float avoid, float vanilla) {
+                              float avoid, float vanilla, byte walkOnLayer, byte walkThroughLayer) {
         if (walkOn < 0.0F || walkThrough < 0.0F || avoid < 0.0F) {
             return -1.0F;
         }
@@ -93,6 +100,7 @@ public class MalusUtils {
             missed = true;
         } else {
             total += walkOn;
+            if (walkOn == 0.0F) missed = true;
         }
 
         if (Float.isNaN(walkThrough)) {
@@ -100,9 +108,13 @@ public class MalusUtils {
             missed = true;
         } else {
             total += walkThrough;
+            if (walkThrough == 0.0F) missed = true;
         }
 
         if (!missed) {
+            if (vanilla < 0.0F && (FlatPenaltyCache.isTagLayer(walkOnLayer) || FlatPenaltyCache.isTagLayer(walkThroughLayer))) {
+                return -1.0F;
+            }
             return total;
         }
         if (vanilla < 0.0F) {
@@ -119,29 +131,42 @@ public class MalusUtils {
     }
 
     public static double computeAvoidPenalty(ServerLevel level, int professionIndex, BlockPos nodePos) {
-        List<ProcessedAvoidEntry> avoids = FlatPenaltyCache.getAvoids(professionIndex);
-        if (avoids.isEmpty()) return 0;
+        FlatPenaltyCache.AvoidData data = FlatPenaltyCache.getAvoidData(professionIndex);
+        int count = data.entries.size();
+        if (count == 0) return 0;
 
-        double total = 0;
-        Set<ProcessedAvoidEntry> matched = new HashSet<>();
+        boolean[] matched = new boolean[count];
+        BlockPos.MutableBlockPos check = BlockPosPool.acquire4();
 
-        int maxRadius = avoids.stream().mapToInt(a -> a.radius).max().orElse(0);
+        int x = nodePos.getX();
         int y0 = nodePos.getY();
+        int z = nodePos.getZ();
+        int maxRadius = data.maxRadius;
+        int maxRadiusSq = maxRadius * maxRadius;
+        double total = 0;
 
-        for (int y = y0; y <= y0 + 2; y++) {
+        for (int dy = 0; dy <= 2; dy++) {
             for (int dx = -maxRadius; dx <= maxRadius; dx++) {
                 for (int dz = -maxRadius; dz <= maxRadius; dz++) {
-                    double distSq = dx * dx + dz * dz;
-                    BlockPos checkPos = nodePos.offset(dx, y - y0, dz);
-                    Block block = level.getBlockState(checkPos).getBlock();
+                    int distSq = dx * dx + dz * dz;
+                    if (distSq > maxRadiusSq) continue;
 
-                    for (ProcessedAvoidEntry avoid : avoids) {
-                        if (matched.contains(avoid)) continue;
+                    check.set(x + dx, y0 + dy, z + dz);
+                    Block block = level.getBlockState(check).getBlock();
+                    int[] candidates = data.byBlock.get(block);
+                    if (candidates == null) continue;
+
+                    for (int index : candidates) {
+                        if (matched[index]) continue;
+
+                        ProcessedAvoidEntry avoid = data.entries.get(index);
                         if (distSq > avoid.radius * avoid.radius) continue;
 
-                        if (avoid.matches(block)) {
-                            total += avoid.penalty;
-                            matched.add(avoid);
+                        total += avoid.penalty;
+                        matched[index] = true;
+
+                        if (data.allNonPositive && avoid.penalty < 0.0) {
+                            return -1.0;
                         }
                     }
                 }
@@ -154,8 +179,7 @@ public class MalusUtils {
         if (!(mob instanceof Villager villager)) {
             return 0.0f;
         }
-        String professionId = getProfessionId(villager);
-        return ConfigManager.getActionPenalty(professionId, "jump");
+        return FlatPenaltyCache.getJumpPenalty(professionIndexOf(villager));
     }
 }
 

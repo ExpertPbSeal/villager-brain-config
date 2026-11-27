@@ -150,7 +150,9 @@ public class PerformanceCommand {
                     FlatPenaltyCache.getWalkThrough(block, index),
                     FlatPenaltyCache.getWalkOnDefault(index),
                     FlatPenaltyCache.getWalkThroughDefault(index),
-                    avoid, vanilla);
+                    avoid, vanilla,
+                    FlatPenaltyCache.getWalkOnLayer(block, index),
+                    FlatPenaltyCache.getWalkThroughLayer(block, index));
             source.sendSuccess(() -> Component.literal(String.format(
                     "path_type=%s vanilla=%s avoid=%s merged=%s", pathType, vanilla, avoid, merged)), false);
         }

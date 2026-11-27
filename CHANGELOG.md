@@ -13,7 +13,15 @@
 - The per tick malus cache is keyed by position and profession, mixed professions at one node no longer share a reading
 - `villager_brain_config clear-cache` clears tick caches only and keeps the built snapshot
 - New `villager_brain_config dump <block> [profession] [path_type]` prints both layers, merged avoids and the final merged malus
-- New top level `max_fall_distance` caps the drop a villager may plan, `3` is vanilla, the generated config uses `1` so villagers no longer walk off two block ledges, a file without the key keeps the vanilla limit
+- New top level `max_fall_distance` caps the drop a villager may plan, `3` is vanilla and lower values refuse deeper drops, a file without the key keeps the vanilla limit
+- The generated config no longer repeats values that vanilla already produces: `fire`, `soul_fire`, `magma_block`, `sweet_berry_bush` and `cactus` left `walk_on`, `lava`, `fire`, `soul_fire`, `sweet_berry_bush`, `cactus`, `powder_snow` and `default` left `walk_through`
+- `minecraft:air` left `walk_through`, so a node on a listed floor falls back to `max(total, vanilla)` again and vanilla `DANGER_FIRE` 16, `DANGER_OTHER` 8, `WATER_BORDER` 8 and `STICKY_HONEY` 8 are no longer suppressed
+- 14 profession entries that repeated the global value were removed, the global cell now answers for them with the same number
+- Cheaper path cost lookup: profiles are resolved by `VillagerProfession` identity instead of a profession id string, the jump penalty is precomputed per profession, and the avoid scan uses a per snapshot block index, a reusable flag array, a pooled position and a precomputed radius
+- Tag ties now resolve by safety instead of tag id alone: a negative value first, then the larger value, then the tag id, and a conflicting pair is logged once per rebuild and counted in `conflicts=`
+- A tag hit can no longer lift a vanilla negative malus, only an exact block id can, so a broad tag stops opening fences, walls, closed iron doors, leaves and lava
+- `0.0` is now transparent: it adds no cost but no longer counts as matched, so a free floor still receives the vanilla context values such as `WATER_BORDER` 8 or `DANGER_FIRE` 16, and `0.0` can no longer lift a vanilla negative
+- `#c:grass` is shipped in the mod data and written next to every `minecraft:short_grass` entry, modded grass blocks can join it with their own datapack tag
 
 ## 1.0.0
 - Initial release

@@ -6,6 +6,7 @@ public class BlockPosPool {
     private static final ThreadLocal<BlockPos.MutableBlockPos> POS_1 = ThreadLocal.withInitial(BlockPos.MutableBlockPos::new);
     private static final ThreadLocal<BlockPos.MutableBlockPos> POS_2 = ThreadLocal.withInitial(BlockPos.MutableBlockPos::new);
     private static final ThreadLocal<BlockPos.MutableBlockPos> POS_3 = ThreadLocal.withInitial(BlockPos.MutableBlockPos::new);
+    private static final ThreadLocal<BlockPos.MutableBlockPos> POS_4 = ThreadLocal.withInitial(BlockPos.MutableBlockPos::new);
     
 
     public static BlockPos.MutableBlockPos acquire1() {
@@ -20,10 +21,15 @@ public class BlockPosPool {
         return POS_3.get();
     }
 
+    public static BlockPos.MutableBlockPos acquire4() {
+        return POS_4.get();
+    }
+
     public static void clear() {
         POS_1.remove();
         POS_2.remove();
         POS_3.remove();
+        POS_4.remove();
     }
 
     public static PoolStats getStats() {
