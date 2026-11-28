@@ -3,7 +3,6 @@ package joshie.vbc.commands;
 import joshie.vbc.config.FlatPenaltyCache;
 import joshie.vbc.config.VillagerGlobalTickCache;
 import joshie.vbc.utils.MalusUtils;
-import joshie.vbc.utils.PerformanceTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
@@ -14,6 +13,8 @@ import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.pathfinder.PathType;
@@ -60,12 +61,6 @@ final class Benchmark {
             at[i] = level.getBlockState(pos).getBlock();
         }
 
-        StringBuilder out = new StringBuilder();
-        out.append("benchmark origin=").append(origin.toShortString())
-                .append(" targets=").append(targets.size())
-                .append(" iterations=").append(iterations);
-
-        PerformanceTracker.reset();
         long callsBefore = VillagerGlobalTickCache.malusCallsTotal;
 
         PathResult villagerNone = measurePaths(unprofessed, origin, targetSet, iterations);
@@ -73,12 +68,13 @@ final class Benchmark {
         PathResult zombieResult = measurePaths(zombie, origin, targetSet, iterations);
         String workload = workload(iterations * 2, VillagerGlobalTickCache.malusCallsTotal - callsBefore);
 
-        out.append("\nbenchmark villager-none   ").append(format(villagerNone));
-        out.append("\nbenchmark villager-farmer ").append(format(villagerFarmer));
-        out.append("\nbenchmark zombie-vanilla  ").append(format(zombieResult));
-        out.append("\nbenchmark ").append(workload);
-        out.append("\nbenchmark ").append(measureMalus(unprofessed, targets, below, at));
-        return out.toString();
+        return String.join("\n",
+                "benchmark origin=" + origin.toShortString() + " targets=" + targets.size() + " iterations=" + iterations,
+                "benchmark villager-none   " + format(villagerNone),
+                "benchmark villager-farmer " + format(villagerFarmer),
+                "benchmark zombie-vanilla  " + format(zombieResult),
+                "benchmark " + workload,
+                "benchmark " + measureMalus(unprofessed, targets, below, at));
     }
 
     private static String workload(int paths, long calls) {
@@ -122,34 +118,13 @@ final class Benchmark {
 
     private static String measureMalus(Villager villager, List<BlockPos> targets, Block[] below, Block[] at) {
         int rounds = 40;
-        int calls = 0;
-        long warmStart = System.nanoTime();
-        for (int round = 0; round < rounds; round++) {
-            for (BlockPos pos : targets) {
-                MalusUtils.maybeVillagerMalus(null, PathType.WALKABLE, villager, pos.getX(), pos.getY(), pos.getZ());
-                calls++;
-            }
-        }
-        long warm = System.nanoTime() - warmStart;
-
-        long coldStart = System.nanoTime();
-        int coldCalls = 0;
-        for (int round = 0; round < rounds; round++) {
-            VillagerGlobalTickCache.reset();
-            for (BlockPos pos : targets) {
-                MalusUtils.maybeVillagerMalus(null, PathType.WALKABLE, villager, pos.getX(), pos.getY(), pos.getZ());
-                coldCalls++;
-            }
-        }
-        long cold = System.nanoTime() - coldStart;
+        int calls = rounds * targets.size();
+        long warm = timeMalus(rounds, targets, villager, false);
+        long cold = timeMalus(rounds, targets, villager, true);
 
         long vanillaStart = System.nanoTime();
-        int vanillaCalls = 0;
-        for (int round = 0; round < rounds; round++) {
-            for (BlockPos pos : targets) {
-                villager.getPathfindingMalus(PathType.WALKABLE);
-                vanillaCalls++;
-            }
+        for (int i = 0; i < calls; i++) {
+            villager.getPathfindingMalus(PathType.WALKABLE);
         }
         long vanilla = System.nanoTime() - vanillaStart;
 
@@ -165,7 +140,20 @@ final class Benchmark {
         long table = System.nanoTime() - tableStart;
 
         return String.format("malus warm=%.0fns cold=%.0fns table=%.0fns vanillaRead=%.1fns",
-                (double) warm / calls, (double) cold / coldCalls, (double) table / tableCalls, (double) vanilla / vanillaCalls);
+                (double) warm / calls, (double) cold / calls, (double) table / tableCalls, (double) vanilla / calls);
+    }
+
+    private static long timeMalus(int rounds, List<BlockPos> targets, Villager villager, boolean cold) {
+        long start = System.nanoTime();
+        for (int round = 0; round < rounds; round++) {
+            if (cold) {
+                VillagerGlobalTickCache.reset();
+            }
+            for (BlockPos pos : targets) {
+                MalusUtils.maybeVillagerMalus(null, PathType.WALKABLE, villager, pos.getX(), pos.getY(), pos.getZ());
+            }
+        }
+        return System.nanoTime() - start;
     }
 
     private static List<BlockPos> sampleTargets(ServerLevel level, BlockPos origin) {
@@ -187,7 +175,9 @@ final class Benchmark {
                 if (!level.getBlockState(cursor).isAir()) {
                     continue;
                 }
-                if (!level.getBlockState(cursor.below()).blocksMotion()) {
+                BlockPos floorPos = cursor.below();
+                BlockState floor = level.getBlockState(floorPos);
+                if (floor.is(Blocks.COBWEB) || floor.getCollisionShape(level, floorPos).isEmpty()) {
                     continue;
                 }
                 found.add(cursor.immutable());

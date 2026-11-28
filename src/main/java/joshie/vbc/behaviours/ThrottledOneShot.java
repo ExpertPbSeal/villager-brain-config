@@ -1,16 +1,13 @@
 package joshie.vbc.behaviours;
 
-import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.behavior.OneShot;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.schedule.Activity;
 
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.function.Predicate;
 
-@ParametersAreNonnullByDefault
-@MethodsReturnNonnullByDefault
 public final class ThrottledOneShot<E extends LivingEntity> extends OneShot<E> {
 
     private final OneShot<E> delegate;
@@ -25,6 +22,7 @@ public final class ThrottledOneShot<E extends LivingEntity> extends OneShot<E> {
         this.interval = interval;
     }
 
+    @Override
     public boolean trigger(ServerLevel level, E entity, long gameTime) {
         if (this.interval > 0 && this.throttled.test(entity)
                 && this.hasStarted && gameTime - this.lastStart < this.interval) {
@@ -38,13 +36,13 @@ public final class ThrottledOneShot<E extends LivingEntity> extends OneShot<E> {
         return true;
     }
 
+    @Override
     public String debugString() {
         return "throttled[" + this.delegate.debugString() + "]";
     }
 
     public static boolean isIdleAdult(Villager villager) {
         return !villager.isBaby()
-                && villager.getBrain().getActiveNonCoreActivity()
-                        .orElse(null) == net.minecraft.world.entity.schedule.Activity.IDLE;
+                && villager.getBrain().getActiveNonCoreActivity().orElse(null) == Activity.IDLE;
     }
 }

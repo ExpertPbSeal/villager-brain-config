@@ -11,12 +11,6 @@ import net.minecraft.world.level.pathfinder.PathType;
 
 
 public class VillagerGlobalTickCache {
-    /**
-     * The cached path types are only valid for one mob shape. Vanilla keeps this cache per
-     * {@code WalkNodeEvaluator}, that is per mob, and clears it in {@code prepare()}; the shared cache
-     * here replaces that, so every entry has to carry the shape it was computed for. A closed wooden
-     * door is walkable for a villager and blocked for a zombie, and a chicken fits where a ravager does not.
-     */
     private static final int NODE_TYPE_SLOTS = 4;
     private static final PathType[] PATH_TYPES = PathType.values();
     private static final long[] nodeTypeSlotSignatures = new long[NODE_TYPE_SLOTS];

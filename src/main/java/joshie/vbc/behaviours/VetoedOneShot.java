@@ -1,15 +1,11 @@
 package joshie.vbc.behaviours;
 
-import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.behavior.OneShot;
 
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.function.Predicate;
 
-@ParametersAreNonnullByDefault
-@MethodsReturnNonnullByDefault
 public final class VetoedOneShot<E extends LivingEntity> extends OneShot<E> {
 
     private final OneShot<E> delegate;
