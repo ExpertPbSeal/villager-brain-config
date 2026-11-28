@@ -50,9 +50,6 @@ jobs:
             echo "::warning::tag ${GITHUB_REF_NAME} does not match mod.version ${{ steps.version.outputs.version }}, the jar name keeps the gradle version"
           fi
 
-      # gradle.properties carries two local only settings: a Windows JDK path in
-      # org.gradle.java.home and an 8 GB daemon heap. Both make the build fail on a runner,
-      # so they are replaced here before Gradle starts.
       - name: Prepare Gradle for the runner
         run: |
           sed -i '/^org\.gradle\.java\.home=/d' gradle.properties
