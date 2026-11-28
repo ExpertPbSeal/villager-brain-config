@@ -1,6 +1,50 @@
 {
   "replace": false,
   "values": [
-    "minecraft:short_grass"
+    "minecraft:short_grass",
+    {
+      "id": "minecraft:short_dry_grass",
+      "required": false
+    },
+    {
+      "id": "natures_spirit:beach_grass",
+      "required": false
+    },
+    {
+      "id": "natures_spirit:scorched_grass",
+      "required": false
+    },
+    {
+      "id": "natures_spirit:sedge_grass",
+      "required": false
+    },
+    {
+      "id": "natures_spirit:oat_grass",
+      "required": false
+    },
+    {
+      "id": "natures_spirit:melic_grass",
+      "required": false
+    },
+    {
+      "id": "natures_spirit:frigid_grass",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:dune_grass",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:high_grass",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:desert_grass",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:dead_grass",
+      "required": false
+    }
   ]
 }

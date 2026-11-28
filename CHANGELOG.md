@@ -25,6 +25,16 @@
 - New top level `ban_work_stroll`, default `true`, switches off the job site stroll so a working villager stays at its station instead of walking up to 40 blocks away, the meeting point stroll is untouched
 - New top level `idle_walk_target_interval`, default `1200` ticks, is the minimum time between two idle strolls per villager, `0` disables it, babies and the panic, pre raid and raid packages keep the vanilla pacing
 - New top level `idle_interval_covers_look_target`, default `false`, puts the look target behaviour behind the same idle interval
+- The generated config now writes `#c:grass` and `#c:tall_grass` instead of `minecraft:short_grass` and `minecraft:tall_grass`, both tags are shipped by this mod and also list the common modded grass blocks
+- `minecraft:anvil`, `minecraft:chipped_anvil` and `minecraft:damaged_anvil` collapsed into one `#minecraft:anvil` entry
+- `#minecraft:slabs` joins `#minecraft:stairs` in `walk_on` with `0.0`
+- Every section of the generated config is sorted alphabetically, tags first, `default` last
+- New developer tool `workspace/tools/check_tags.py` validates every tag in the generated config against the vanilla, NeoForge and mod tag sets
+- Fix: the shipped `#c:grass` and `#c:tall_grass` tags list modded blocks with `required: false`, an uninstalled mod no longer makes the whole tag fail to load and silently drop every grass penalty
+- New `villager_brain_config benchmark [iterations]` measures the cost of one path find for a villager, a farmer and a zombie next to each other, plus the per call malus cost
+- Fix: the shared node type cache is keyed by position and by mob shape (`entity type`, bounding box, door rules) instead of position alone, a closed wooden door computed as blocked for a zombie can no longer make a villager treat its own door as impassable, and a chicken can no longer hand a gap only it fits through to a ravager
+- Fix: a villager whose profession is not in the registry, for example after a mod that added it was removed, no longer throws inside the profession lookup and falls back to `minecraft:none`
+- The mod packages declare `@ParametersAreNonnullByDefault` and mark the genuinely nullable parameters (`@Nullable`), so the nullability contract of the API is written down
 
 ## 1.0.0
 - Initial release

@@ -8,12 +8,6 @@ import net.minecraft.world.entity.ai.behavior.OneShot;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.function.Predicate;
 
-/**
- * Wraps a vanilla {@link OneShot} and refuses to start when the veto says so.
- * <p>
- * Used to switch off a single behaviour instance without touching the package it lives in, so the
- * remaining children of the surrounding {@code RunOne} keep running normally.
- */
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
 public final class VetoedOneShot<E extends LivingEntity> extends OneShot<E> {

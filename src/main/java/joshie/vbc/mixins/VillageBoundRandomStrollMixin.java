@@ -11,13 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/**
- * Applies the configured idle walk target interval to the random stroll.
- * <p>
- * This factory is shared by the idle, play, panic, pre raid and raid packages, so the interval is
- * only applied while the villager runs the idle activity and is not a baby. Every other case keeps
- * the vanilla pacing.
- */
+
 @Mixin(VillageBoundRandomStroll.class)
 public class VillageBoundRandomStrollMixin {
 

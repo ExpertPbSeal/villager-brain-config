@@ -9,14 +9,6 @@ import net.minecraft.world.entity.npc.Villager;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.function.Predicate;
 
-/**
- * Wraps a vanilla {@link OneShot} and enforces a minimum interval between two successful triggers,
- * but only for the entities the predicate selects.
- * <p>
- * The predicate means "this entity is throttled", not "this entity is blocked". Entities outside the
- * predicate run the wrapped behaviour without any interval, which keeps panic, raid and play
- * packages untouched while the same factory is reused by several villager packages.
- */
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
 public final class ThrottledOneShot<E extends LivingEntity> extends OneShot<E> {
@@ -33,7 +25,6 @@ public final class ThrottledOneShot<E extends LivingEntity> extends OneShot<E> {
         this.interval = interval;
     }
 
-    @Override
     public boolean trigger(ServerLevel level, E entity, long gameTime) {
         if (this.interval > 0 && this.throttled.test(entity)
                 && this.hasStarted && gameTime - this.lastStart < this.interval) {
@@ -47,15 +38,10 @@ public final class ThrottledOneShot<E extends LivingEntity> extends OneShot<E> {
         return true;
     }
 
-    @Override
     public String debugString() {
         return "throttled[" + this.delegate.debugString() + "]";
     }
 
-    /**
-     * True for an adult villager that is currently running the idle package, which is the only case
-     * the idle stroll interval should apply to.
-     */
     public static boolean isIdleAdult(Villager villager) {
         return !villager.isBaby()
                 && villager.getBrain().getActiveNonCoreActivity()

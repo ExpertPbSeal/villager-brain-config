@@ -1,0 +1,34 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:tall_grass",
+    {
+      "id": "minecraft:tall_dry_grass",
+      "required": false
+    },
+    {
+      "id": "natures_spirit:tall_beach_grass",
+      "required": false
+    },
+    {
+      "id": "natures_spirit:tall_scorched_grass",
+      "required": false
+    },
+    {
+      "id": "natures_spirit:tall_sedge_grass",
+      "required": false
+    },
+    {
+      "id": "natures_spirit:tall_oat_grass",
+      "required": false
+    },
+    {
+      "id": "natures_spirit:tall_melic_grass",
+      "required": false
+    },
+    {
+      "id": "natures_spirit:tall_frigid_grass",
+      "required": false
+    }
+  ]
+}

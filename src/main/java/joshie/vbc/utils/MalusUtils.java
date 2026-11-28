@@ -13,6 +13,9 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.pathfinder.NodeEvaluator;
 import net.minecraft.world.level.pathfinder.PathType;
 
+import javax.annotation.Nullable;
+
+
 public class MalusUtils {
     public static boolean hasMalus(PathfinderMob mob, BlockPos pos) {
         return false;
@@ -32,7 +35,7 @@ public class MalusUtils {
 
 
 
-    public static float maybeVillagerMalus(NodeEvaluator evaluator, PathType pathType, Mob mob, int x, int y, int z) {
+    public static float maybeVillagerMalus(@Nullable NodeEvaluator evaluator, PathType pathType, Mob mob, int x, int y, int z) {
         if (pathType == PathType.BLOCKED) {
             return -1.0F;
         }

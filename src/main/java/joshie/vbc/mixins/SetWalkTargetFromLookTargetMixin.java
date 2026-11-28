@@ -14,12 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-/**
- * Optionally applies the same idle walk target interval to the look target behaviour.
- * <p>
- * Disabled by default: this behaviour is what makes a villager walk over to a player or a cat, so
- * throttling it changes how lively a village feels.
- */
+
 @Mixin(SetWalkTargetFromLookTarget.class)
 public class SetWalkTargetFromLookTargetMixin {
 

@@ -14,10 +14,8 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import static joshie.vbc.VillagerBrainConfig.LOGGER;
 
 import java.util.Iterator;
-import java.util.Objects;
 import java.util.Set;
 
 import net.minecraft.world.level.pathfinder.PathType;
@@ -288,8 +286,6 @@ public abstract class WalkNodeEvaluatorMixin {
                 zNode = evaluator.getNode(zNode.x, root.y, zNode.z);
                 xNode = evaluator.getNode(xNode.x, root.y, xNode.z);
                 if (xNode.type != PathType.WALKABLE_DOOR && zNode.type != PathType.WALKABLE_DOOR) {
-                    boolean flag = zNode.type == PathType.FENCE && xNode.type == PathType.FENCE && (double) (evaluator.mob.getBbWidth()) < 0.5;
-
                     float malusZ = MalusUtils.maybeVillagerMalus(evaluator, zNode.type, evaluator.mob, zNode.x, zNode.y, zNode.z); // B
                     float malusX = MalusUtils.maybeVillagerMalus(evaluator, xNode.type, evaluator.mob, xNode.x, xNode.y, xNode.z); // A
 

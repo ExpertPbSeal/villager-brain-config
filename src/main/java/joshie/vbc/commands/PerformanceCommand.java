@@ -2,6 +2,7 @@ package joshie.vbc.commands;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import joshie.vbc.config.FlatPenaltyCache;
 import joshie.vbc.config.ProcessedAvoidEntry;
@@ -23,6 +24,7 @@ import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.pathfinder.PathType;
 
+import javax.annotation.Nullable;
 import java.util.List;
 
 public class PerformanceCommand {
@@ -89,6 +91,11 @@ public class PerformanceCommand {
                             ctx.getSource().sendSuccess(() -> Component.literal("Performance statistics reset"), true);
                             return Command.SINGLE_SUCCESS;
                         }))
+                .then(Commands.literal("benchmark")
+                        .requires(source -> source.hasPermission(2))
+                        .executes(ctx -> benchmark(ctx.getSource(), 100))
+                        .then(Commands.argument("iterations", IntegerArgumentType.integer(1, 1000))
+                                .executes(ctx -> benchmark(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "iterations")))))
                 .then(Commands.literal("dump")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.argument("block", ResourceLocationArgument.id())
@@ -102,7 +109,16 @@ public class PerformanceCommand {
                                                         StringArgumentType.getString(ctx, "path_type"))))))));
     }
 
-    private static int dump(CommandSourceStack source, ResourceLocation blockId, String profession, String pathTypeName) {
+    private static int benchmark(CommandSourceStack source, int iterations) {
+        String result = Benchmark.run(source.getLevel(), BlockPos.containing(source.getPosition()), iterations);
+        Benchmark.log(result);
+        for (String line : result.split("\n")) {
+            source.sendSuccess(() -> Component.literal(line), false);
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int dump(CommandSourceStack source, ResourceLocation blockId, @Nullable String profession, @Nullable String pathTypeName) {
         if (!BuiltInRegistries.BLOCK.containsKey(blockId)) {
             source.sendFailure(Component.literal("Unknown block " + blockId));
             return 0;

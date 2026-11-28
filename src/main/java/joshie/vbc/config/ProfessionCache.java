@@ -1,5 +1,6 @@
 package joshie.vbc.config;
 
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.npc.Villager;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
@@ -19,10 +20,12 @@ public class ProfessionCache {
         String professionId = ref != null ? ref.get() : null;
         
         if (professionId == null) {
-            professionId = villager.level().registryAccess()
+            ResourceLocation id = villager.level().registryAccess()
                     .registryOrThrow(net.minecraft.core.registries.Registries.VILLAGER_PROFESSION)
-                    .getKey(villager.getVillagerData().getProfession())
-                    .toString();
+                    .getKey(villager.getVillagerData().getProfession());
+            // getKey returns null for a profession that is not in the registry, a removed mod profession for example,
+            // so it must not be dereferenced directly; the fallback is a normal function, not a missing penalty.
+            professionId = id == null ? "minecraft:none" : id.toString();
             professionCache.put(villager, new WeakReference<>(professionId));
         }
         

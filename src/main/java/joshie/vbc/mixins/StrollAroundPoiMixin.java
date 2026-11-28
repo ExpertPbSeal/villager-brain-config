@@ -13,12 +13,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/**
- * Switches off the job site stroll when the configuration asks for it.
- * <p>
- * The same factory also builds the meeting point stroll used by the gather package, that one is
- * left alone: only the {@link MemoryModuleType#JOB_SITE} instance is vetoed.
- */
+
 @Mixin(StrollAroundPoi.class)
 public class StrollAroundPoiMixin {
 

@@ -16,6 +16,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -106,7 +107,7 @@ public final class FlatPenaltyCache {
     }
 
     private static Table buildTable(Registry<Block> blocks, Map<String, Double> walkOn, Map<String, Double> walkThrough,
-                                    Table fallback, Diagnostics diagnostics, String owner) {
+                                    @Nullable Table fallback, Diagnostics diagnostics, String owner) {
         byte exactLayer = fallback == null ? LAYER_GLOBAL_EXACT : LAYER_PROFESSION_EXACT;
         byte tagLayer = fallback == null ? LAYER_GLOBAL_TAG : LAYER_PROFESSION_TAG;
 
@@ -241,7 +242,7 @@ public final class FlatPenaltyCache {
         return new CacheStats(current.professions.length, cells, !current.global.cells.isEmpty());
     }
 
-    private static TypeTable readType(Registry<Block> blocks, Map<String, Double> penalties, float constant,
+    private static TypeTable readType(Registry<Block> blocks, @Nullable Map<String, Double> penalties, float constant,
                                       byte exactLayer, byte tagLayer, Diagnostics diagnostics, String owner, String type) {
         TypeTable table = new TypeTable(constant, exactLayer, tagLayer);
         if (penalties == null) return table;
@@ -300,7 +301,7 @@ public final class FlatPenaltyCache {
         if (type.tags.isEmpty()) return hits;
 
         int ruleCount = type.tags.size();
-        boolean[] matched = ruleCount > 1 ? new boolean[ruleCount] : null;
+        boolean[] matched = new boolean[Math.max(ruleCount, 1)];
 
         for (Block block : blocks) {
             if (hits.containsKey(block)) continue;

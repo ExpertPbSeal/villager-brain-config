@@ -5,12 +5,32 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ByteMap;
 import it.unimi.dsi.fastutil.longs.Long2ByteOpenHashMap;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.pathfinder.PathType;
 
 
 public class VillagerGlobalTickCache {
+    /**
+     * The cached path types are only valid for one mob shape. Vanilla keeps this cache per
+     * {@code WalkNodeEvaluator}, that is per mob, and clears it in {@code prepare()}; the shared cache
+     * here replaces that, so every entry has to carry the shape it was computed for. A closed wooden
+     * door is walkable for a villager and blocked for a zombie, and a chicken fits where a ravager does not.
+     */
+    private static final int NODE_TYPE_SLOTS = 4;
+    private static final PathType[] PATH_TYPES = PathType.values();
+    private static final long[] nodeTypeSlotSignatures = new long[NODE_TYPE_SLOTS];
+    private static final boolean[] nodeTypeSlotUsed = new boolean[NODE_TYPE_SLOTS];
+    private static final Long2ByteMap[] nodeTypeSlotCaches = new Long2ByteMap[NODE_TYPE_SLOTS];
+    private static int nodeTypeSlotCursor;
+
+    static {
+        for (int i = 0; i < NODE_TYPE_SLOTS; i++) {
+            nodeTypeSlotCaches[i] = new Long2ByteOpenHashMap(1024);
+        }
+    }
+
     private static volatile Long2ObjectMap<float[]>[] partCaches = new Long2ObjectMap[0];
-    public static final Long2ByteMap nodeTypeCache = new Long2ByteOpenHashMap(4096);
     
     private static volatile long currentTick = -1;
     
@@ -18,12 +38,15 @@ public class VillagerGlobalTickCache {
     public static int malusMisses = 0;
     public static int nodeTypeHits = 0;
     public static int nodeTypeMisses = 0;
+    /** Never reset by the 50 ms window, so tools can measure a rate across windows. */
+    public static long malusCallsTotal = 0L;
     
 
     public static float[] getPenaltyParts(BlockPos pos, int professionIndex, java.util.function.Supplier<float[]> computer) {
         long posKey = pos.asLong();
         
         ensureTickValid();
+        malusCallsTotal++;
         
         Long2ObjectMap<float[]> cache = cache(professionIndex);
         
@@ -61,26 +84,39 @@ public class VillagerGlobalTickCache {
         }
     }
 
-    public static PathType getNodeType(int x, int y, int z, java.util.function.Supplier<PathType> computer) {
-        long posKey = BlockPos.asLong(x, y, z);
-        
-        ensureTickValid();
-        
-        if (nodeTypeCache.containsKey(posKey)) {
-            nodeTypeHits++;
-            byte encoded = nodeTypeCache.get(posKey);
-            return PathType.values()[encoded];
-        }
-        
-        PathType result = computer.get();
-        if (result != null) {
-            nodeTypeCache.put(posKey, (byte) result.ordinal());
-            nodeTypeMisses++;
-        }
-        
-        return result;
+    public static long nodeTypeSignature(Mob mob, boolean canOpenDoors, boolean canPassDoors) {
+        int width = Mth.floor(mob.getBbWidth() + 1.0F);
+        int height = Mth.floor(mob.getBbHeight() + 1.0F);
+        long shape = ((long) (width & 7) << 9)
+                | ((long) (height & 7) << 6)
+                | ((long) (width & 7) << 3)
+                | (canOpenDoors ? 2L : 0L)
+                | (canPassDoors ? 1L : 0L);
+        return ((long) mob.getType().hashCode() << 16) | shape;
     }
-    
+
+    private static int slotFor(long signature) {
+        for (int i = 0; i < NODE_TYPE_SLOTS; i++) {
+            if (nodeTypeSlotUsed[i] && nodeTypeSlotSignatures[i] == signature) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static int claimSlot(long signature) {
+        for (int i = 0; i < NODE_TYPE_SLOTS; i++) {
+            if (!nodeTypeSlotUsed[i]) {
+                nodeTypeSlotUsed[i] = true;
+                nodeTypeSlotSignatures[i] = signature;
+                return i;
+            }
+        }
+        int slot = nodeTypeSlotCursor++ & (NODE_TYPE_SLOTS - 1);
+        nodeTypeSlotCaches[slot].clear();
+        nodeTypeSlotSignatures[slot] = signature;
+        return slot;
+    }
 
     public static void ensureTickValid() {
         long tick = getCurrentTick();
@@ -95,7 +131,12 @@ public class VillagerGlobalTickCache {
         for (Long2ObjectMap<float[]> cache : partCaches) {
             cache.clear();
         }
-        nodeTypeCache.clear();
+        for (int i = 0; i < NODE_TYPE_SLOTS; i++) {
+            nodeTypeSlotCaches[i].clear();
+            nodeTypeSlotUsed[i] = false;
+            nodeTypeSlotSignatures[i] = 0L;
+        }
+        nodeTypeSlotCursor = 0;
         
         malusHits = 0;
         malusMisses = 0;
@@ -108,26 +149,32 @@ public class VillagerGlobalTickCache {
         return System.currentTimeMillis() / 50;
     }
 
-    public static boolean hasNodeTypeCached(long posKey) {
+    public static PathType getCachedNodeType(long signature, long posKey) {
         ensureTickValid();
-        return nodeTypeCache.containsKey(posKey);
-    }
-
-    public static PathType getCachedNodeType(long posKey) {
-        if (nodeTypeCache.containsKey(posKey)) {
-            nodeTypeHits++;
-            byte encoded = nodeTypeCache.get(posKey);
-            return PathType.values()[encoded];
+        int slot = slotFor(signature);
+        if (slot < 0) {
+            nodeTypeMisses++;
+            return null;
         }
+        Long2ByteMap cache = nodeTypeSlotCaches[slot];
+        if (cache.containsKey(posKey)) {
+            nodeTypeHits++;
+            return PATH_TYPES[cache.get(posKey)];
+        }
+        nodeTypeMisses++;
         return null;
     }
 
-    public static void cacheNodeType(long posKey, PathType pathType) {
-        if (pathType != null) {
-            ensureTickValid();
-            nodeTypeCache.put(posKey, (byte) pathType.ordinal());
-            nodeTypeMisses++;
+    public static void cacheNodeType(long signature, long posKey, PathType pathType) {
+        if (pathType == null) {
+            return;
         }
+        ensureTickValid();
+        int slot = slotFor(signature);
+        if (slot < 0) {
+            slot = claimSlot(signature);
+        }
+        nodeTypeSlotCaches[slot].put(posKey, (byte) pathType.ordinal());
     }
 
     public static CacheStats getStats() {
@@ -135,8 +182,12 @@ public class VillagerGlobalTickCache {
         for (Long2ObjectMap<float[]> cache : partCaches) {
             malusSize += cache.size();
         }
+        int nodeTypeSize = 0;
+        for (Long2ByteMap cache : nodeTypeSlotCaches) {
+            nodeTypeSize += cache.size();
+        }
         return new CacheStats(
-            malusSize, nodeTypeCache.size(),
+            malusSize, nodeTypeSize,
             malusHits, malusMisses, nodeTypeHits, nodeTypeMisses,
             currentTick
         );
