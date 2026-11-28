@@ -22,6 +22,9 @@
 - A tag hit can no longer lift a vanilla negative malus, only an exact block id can, so a broad tag stops opening fences, walls, closed iron doors, leaves and lava
 - `0.0` is now transparent: it adds no cost but no longer counts as matched, so a free floor still receives the vanilla context values such as `WATER_BORDER` 8 or `DANGER_FIRE` 16, and `0.0` can no longer lift a vanilla negative
 - `#c:grass` is shipped in the mod data and written next to every `minecraft:short_grass` entry, modded grass blocks can join it with their own datapack tag
+- New top level `ban_work_stroll`, default `true`, switches off the job site stroll so a working villager stays at its station instead of walking up to 40 blocks away, the meeting point stroll is untouched
+- New top level `idle_walk_target_interval`, default `1200` ticks, is the minimum time between two idle strolls per villager, `0` disables it, babies and the panic, pre raid and raid packages keep the vanilla pacing
+- New top level `idle_interval_covers_look_target`, default `false`, puts the look target behaviour behind the same idle interval
 
 ## 1.0.0
 - Initial release

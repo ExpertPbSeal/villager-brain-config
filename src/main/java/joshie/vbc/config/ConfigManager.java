@@ -85,7 +85,7 @@ public class ConfigManager {
         CONFIG.walkOnBlockPenalties.put("minecraft:mud_bricks", 0.0);
         CONFIG.walkOnBlockPenalties.put("#minecraft:stairs", 0.0);
         CONFIG.walkOnBlockPenalties.put("#minecraft:wool", 0.0);
-        CONFIG.walkOnBlockPenalties.put("#material:granite", 0.0);
+        CONFIG.walkOnBlockPenalties.put("minecraft:granite", 0.0);
         // Village Blocks
         CONFIG.walkOnBlockPenalties.put("minecraft:grass_block", 5.0);
         CONFIG.walkOnBlockPenalties.put("#minecraft:leaves", 32.0);
@@ -98,7 +98,7 @@ public class ConfigManager {
         CONFIG.walkThroughBlockPenalties.put("minecraft:water", 32.0);
         CONFIG.walkThroughBlockPenalties.put("minecraft:short_grass", 4.0);
         CONFIG.walkThroughBlockPenalties.put("#c:grass", 4.0);
-        CONFIG.walkThroughBlockPenalties.put("minecraft:tall_grass", 8.0);
+        CONFIG.walkThroughBlockPenalties.put("#c:tall_grass", 8.0);
         CONFIG.walkThroughBlockPenalties.put("minecraft:fern", 4.0);
         CONFIG.walkThroughBlockPenalties.put("minecraft:large_fern", 8.0);
         CONFIG.walkThroughBlockPenalties.put("#minecraft:trapdoors", 32.0);
@@ -106,6 +106,9 @@ public class ConfigManager {
 
         CONFIG.actionsPenalties.put("jump", 5.0);
         CONFIG.maxFallDistance = 1;
+        CONFIG.banWorkStroll = true;
+        CONFIG.idleWalkTargetInterval = 1200;
+        CONFIG.idleIntervalCoversLookTarget = false;
 
         CONFIG.avoids.add(new AvoidEntry("minecraft:lava", 3, -1.0));
         CONFIG.avoids.add(new AvoidEntry("minecraft:fire", 3, -1.0));
@@ -342,6 +345,18 @@ public class ConfigManager {
 
     public static int getMaxFallDistance() {
         return Math.max(0, CONFIG.maxFallDistance);
+    }
+
+    public static boolean isWorkStrollBanned() {
+        return CONFIG.banWorkStroll;
+    }
+
+    public static int getIdleWalkTargetInterval() {
+        return Math.max(0, CONFIG.idleWalkTargetInterval);
+    }
+
+    public static boolean idleIntervalCoversLookTarget() {
+        return CONFIG.idleIntervalCoversLookTarget;
     }
 
 }

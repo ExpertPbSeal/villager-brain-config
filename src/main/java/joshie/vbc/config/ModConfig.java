@@ -20,6 +20,15 @@ public class ModConfig {
     @SerializedName("max_fall_distance")
     public int maxFallDistance = 3;
 
+    @SerializedName("ban_work_stroll")
+    public boolean banWorkStroll = true;
+
+    @SerializedName("idle_walk_target_interval")
+    public int idleWalkTargetInterval = 1200;
+
+    @SerializedName("idle_interval_covers_look_target")
+    public boolean idleIntervalCoversLookTarget = false;
+
     @SerializedName("professions")
     public Map<String, ModConfig> professions = new HashMap<>();
 
